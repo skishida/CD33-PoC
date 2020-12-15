@@ -1,0 +1,15 @@
+BasedOnStyle: LLVM
+UseTab: Never
+BraceWrapping:
+  AfterFunction: true
+  AfterControlStatement: false
+AlignConsecutiveAssignments: true
+AlignConsecutiveDeclarations: true
+# AlignConsecutiveMacros: true
+AlignTrailingComments: true
+AllowShortBlocksOnASingleLine: false
+AllowShortFunctionsOnASingleLine: Empty
+BinPackArguments: true
+AllowShortIfStatementsOnASingleLine: true
+SortIncludes: false
+PointerAlignment: Left
