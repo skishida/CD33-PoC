@@ -13,6 +13,8 @@ ESC = b'\xDB'
 ESC_END = b'\xDC'
 ESC_ESC = b'\xDD'
 
+measuresec = 1
+
 
 def parse(rx):
     # SLIP に基づいたデコード
@@ -51,7 +53,7 @@ if __name__ == '__main__':
     fs = open(dir+'/{:%Y%m%d-%H%M%S}_control.csv'.format(now), 'w')
     fs.write("us, mm\n")
 
-    port = "COM9"
+    port = "COM4"
     device = serial.Serial(port)
     device.baudrate = 1000000
     device.parity = serial.PARITY_NONE
@@ -63,21 +65,30 @@ if __name__ == '__main__':
 
     # 測定秒数指定
     # "#10" -> 10秒読みだし
-    device.write("#10\r".encode())
+    measuresec = 10
+    command = "#"+str(measuresec)+"\r"
+    device.write(command.encode())
 
     sleep(1)
     # 測定開始
+    time_start = time.time()
     device.write("S\r".encode())
     while(1):
+        if(time.time() - time_start > (measuresec+1)):
+            # 計測時間が終了していても強制終了
+            break
         rx = device.read_until(END)
         try:
             raw = parse(rx)
-            time, length = struct.unpack("Lf", raw)
-            data = str(time) + ", " + '{:.4f}'.format(length)
+            read_time, length, stat = struct.unpack("Lfi", raw)
+            data = '{:05.3f}'.format(read_time/1000.0) + ", " + \
+                '{:.4f}'.format(length) + ", " + str(stat)
             if(length >= 9999):
                 # 測定データとして9999が来ることはないのでマイコン側で終了の合図としておく
                 break
             print(data)
             fs.write(data + "\n")
         except Exception as e:
-            logger.error(raw.hex() + e)
+            logger.error(raw.hex())
+            logger.error(str(e))
+    fs.close()

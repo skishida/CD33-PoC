@@ -28,8 +28,9 @@ union Distance {
   struct {
     unsigned long time;
     float         len;
+    uint8_t       stat;
   };
-  uint8_t bin[sizeof(unsigned long) + sizeof(float)];
+  uint8_t bin[sizeof(unsigned long) + sizeof(float) + sizeof(uint8_t)];
 };
 
 Distance dist;
@@ -44,6 +45,9 @@ HardwareSerial Serial1(PA10, PA9); // RX/TX それぞれD2,D8に相当
 bool          measureend;
 bool          measureing;
 unsigned long duration = 1;
+
+bool          flippingPin = false;
+unsigned long timeLastFlipped;
 
 void sendCommand(const String command) {
   String cmd = STX + command + ETX;
@@ -79,6 +83,7 @@ void sendPacket(const uint8_t* buffer, size_t size) {
 void setup() {
 
   pinMode(LED_BUILTIN, OUTPUT);
+  pinMode(D7, OUTPUT);
 
   // USB Serialの設定
   // 実はSTM32Duino(mbed)の場合ここのボーレートはあまり本質的ではない
@@ -100,6 +105,14 @@ void setup() {
   while (Serial1.available() > 0) {
     Serial1.read();
   }
+
+  for (int i = 0; i < 3; i++) {
+    digitalWrite(LED_BUILTIN, HIGH);
+    delay(100);
+    digitalWrite(LED_BUILTIN, LOW);
+    delay(100);
+  }
+  digitalWrite(D7, flippingPin);
 }
 
 void loop() {
@@ -113,6 +126,7 @@ void loop() {
       digitalWrite(LED_BUILTIN, HIGH);
       sendCommand(START_MEASURE);
       timeMeasureStarted = micros();
+      timeLastFlipped    = timeMeasureStarted;
     }
 
     // 設定読み出し
@@ -130,6 +144,7 @@ void loop() {
     if (micros() - timeMeasureStarted < duration * 1000000) {
       dist.len  = Serial1.readStringUntil('\r').toFloat();
       dist.time = micros() - timeMeasureStarted;
+      dist.stat = (flippingPin) ? 0x01 : 0x00;
       // 受信側のバッファ節約のためにSLIP形式でバイナリのまま送る
       sendPacket(dist.bin, sizeof(Distance));
       cnt++;
@@ -149,6 +164,13 @@ void loop() {
       measureing = false;
       digitalWrite(LED_BUILTIN, LOW);
     }
+
+    // Pin Fipping
+    if (micros() - timeLastFlipped > 1000000) {
+      flippingPin     = !flippingPin;
+      timeLastFlipped = micros();
+    }
+    digitalWrite(D7, flippingPin);
   }
 }
 
@@ -183,12 +205,14 @@ void dumpInfo() {
   Serial.print("Sampling Rate : ");
   Serial.println(sampleRate);
 
-  // Serial.print("Data Structure : ");
-  // Serial.println(sizeof(Distance));
-  // Serial.print("\ttime: ");
-  // Serial.println(sizeof(unsigned long));
-  // Serial.print("\tdist: ");
-  // Serial.println(sizeof(float));
+  Serial.print("Data Structure : ");
+  Serial.println(sizeof(Distance));
+  Serial.print("\ttime: ");
+  Serial.println(sizeof(unsigned long));
+  Serial.print("\tdist: ");
+  Serial.println(sizeof(float));
+  Serial.print("\tstat: ");
+  Serial.println(sizeof(uint8_t));
 
   while (Serial1.available() > 0) {
     Serial1.read();
